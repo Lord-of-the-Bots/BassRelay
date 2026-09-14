@@ -1,0 +1,101 @@
+<Window x:Class="BassRelay.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Bass Relay" Width="520" MinWidth="460" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen" Background="#FAFAFA"
+        FontFamily="Segoe UI" FontSize="13" Foreground="#24282D">
+    <Window.Resources>
+        <Style TargetType="ToolTip">
+            <Setter Property="MaxWidth" Value="360" />
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" TextWrapping="Wrap" MaxWidth="336" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="BorderBrush" Value="#CCD0D5" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        </Style>
+        <Style x:Key="QuietButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#48515C" />
+            <Setter Property="Padding" Value="5" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="#EBEDF0" /></Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Surface" Property="Background" Value="#E4E8ED" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <StackPanel Margin="16,12,16,10">
+        <Grid Margin="0,0,0,14">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <StackPanel Margin="0,1,10,0">
+                <TextBlock x:Name="IntroductionLabel" Text="{DynamicResource Introduction}"
+                           ToolTip="{DynamicResource PriorityMainHelp}" ToolTipService.ShowDuration="20000"
+                           FontSize="12" Foreground="#66707C" TextWrapping="Wrap" />
+                <TextBlock x:Name="SimHubFeatureLabel" Text="{DynamicResource SimHubFeature}"
+                           FontSize="12" FontWeight="SemiBold" Foreground="#365F70"
+                           TextWrapping="Wrap" Margin="0,6,0,0" />
+            </StackPanel>
+            <Button Grid.Column="1" x:Name="SettingsButton" Style="{StaticResource QuietButton}"
+                    Width="28" Height="28" VerticalAlignment="Top" Click="OpenSettingsClicked"
+                    ToolTip="{DynamicResource Settings}" AutomationProperties.Name="{DynamicResource Settings}">
+                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE713;" FontSize="16" />
+                <Button.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem x:Name="CloseToTrayBox" Header="{DynamicResource CloseToTray}" IsCheckable="True" Click="SettingsChanged" />
+                        <MenuItem x:Name="StartWithWindowsBox" Header="{DynamicResource StartWithWindows}" IsCheckable="True" Click="SettingsChanged" />
+                        <MenuItem x:Name="PrioritizeExternalAudioBox" Header="{DynamicResource PrioritizeExternalAudio}" IsCheckable="True" Click="SettingsChanged"
+                                  ToolTip="{DynamicResource PriorityHelp}" />
+                        <MenuItem x:Name="LanguageMenu" Header="{DynamicResource Language}">
+                            <MenuItem Header="{DynamicResource SystemLanguage}" Tag="system" IsCheckable="True" Click="LanguageChanged" />
+                            <Separator />
+                            <MenuItem Header="Русский" Tag="ru" IsCheckable="True" Click="LanguageChanged" />
+                            <MenuItem Header="English" Tag="en" IsCheckable="True" Click="LanguageChanged" />
+                            <MenuItem Header="Português (Brasil)" Tag="pt-BR" IsCheckable="True" Click="LanguageChanged" />
+                            <MenuItem Header="Español" Tag="es" IsCheckable="True" Click="LanguageChanged" />
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Header="{DynamicResource RefreshDevices}" Click="RefreshClicked" />
+                        <Separator />
+                        <MenuItem Header="{DynamicResource Exit}" Click="ExitClicked" />
+                    </ContextMenu>
+                </Button.ContextMenu>
+            </Button>
+        </Grid>
+        <TextBlock x:Name="ErrorLabel" Foreground="#A45127" FontSize="11" TextWrapping="Wrap"
+                   Margin="0,0,0,10" Visibility="Collapsed" />
+        <ScrollViewer x:Name="ShakerScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="ShakerCards" />
+        </ScrollViewer>
+        <Grid Margin="0,3,0,0">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <Button x:Name="AddShakerButton" Content="{DynamicResource AddShaker}" Click="AddShakerClicked"
+                    Style="{StaticResource QuietButton}" HorizontalAlignment="Left" Margin="-5,0,0,0" />
+            <Button x:Name="PauseButton" Grid.Column="1" Content="{DynamicResource Pause}" Click="PauseClicked"
+                    Style="{StaticResource QuietButton}" Background="#EBEDF0" Padding="12,5"
+                    MinWidth="86" FontWeight="SemiBold" ToolTip="{DynamicResource PauseHelp}" />
+        </Grid>
+    </StackPanel>
+</Window>
