@@ -22,20 +22,24 @@ public partial class ShakerCard : UserControl
     private int _number = 1;
     private AudioEngineSnapshot? _snapshot;
     private static readonly Brush Invalid = new SolidColorBrush(Color.FromRgb(182, 51, 51));
-    private static readonly Brush NormalBorder = new SolidColorBrush(Color.FromRgb(201, 209, 218));
 
     public ShakerSettings Settings { get; }
 
-    public ShakerCard(ShakerSettings settings, Action changed, Action<ShakerCard> remove)
+    public ShakerCard(ShakerSettings settings, Action changed, Action<ShakerCard> remove, DataTemplate? deviceTemplate = null)
     {
         Settings = settings;
         _changed = changed;
         _remove = remove;
         _updating = true;
         InitializeComponent();
+        if (deviceTemplate is not null)
+        {
+            DeviceBox.DisplayMemberPath = "";
+            DeviceBox.ItemTemplate = deviceTemplate;
+        }
         SetNumber(1);
         ShowSavedNumbers();
-        GainSlider.Value = Math.Clamp(settings.Gain * 100, 0, 100);
+        GainSlider.Value = Math.Max(0, Math.Min(100, settings.Gain * 100));
         GainValueLabel.Text = $"{Math.Round(GainSlider.Value):0} %";
         _updating = false;
     }
@@ -75,7 +79,7 @@ public partial class ShakerCard : UserControl
         var devices = new List<AudioDeviceInfo> { new("", Localization.Text("NoneSelected")) };
         devices.AddRange(snapshot.Devices);
         if (!string.IsNullOrEmpty(Settings.DeviceId) && devices.All(d => !string.Equals(d.Id, Settings.DeviceId, StringComparison.OrdinalIgnoreCase)))
-            devices.Add(new AudioDeviceInfo(Settings.DeviceId, Localization.Text("UnavailableDevice", Settings.DeviceName ?? Localization.Text("SoundCard"))));
+            devices.Add(new AudioDeviceInfo(Settings.DeviceId!, Localization.Text("UnavailableDevice", Settings.DeviceName ?? Localization.Text("SoundCard"))));
         var current = DeviceBox.ItemsSource as IReadOnlyList<AudioDeviceInfo>;
         if (current is null || !current.SequenceEqual(devices))
             DeviceBox.ItemsSource = devices;
@@ -162,7 +166,7 @@ public partial class ShakerCard : UserControl
     private static bool CanInsertFrequencyText(TextBox box, string insertion)
     {
         string text = box.Text.Remove(box.SelectionStart, box.SelectionLength).Insert(box.SelectionStart, insertion);
-        if (text.Length > box.MaxLength || text.Any(c => !char.IsAsciiDigit(c) && c != '.' && c != ',')) return false;
+        if (text.Length > box.MaxLength || text.Any(c => (c < '0' || c > '9') && c != '.' && c != ',')) return false;
         if (text.Count(c => c == '.' || c == ',') > 1) return false;
         if (text is "" or "." or ",") return true;
         return TryNumber(text, out double value) && value >= FrequencyRange.Minimum && value <= FrequencyRange.Maximum;
@@ -190,8 +194,8 @@ public partial class ShakerCard : UserControl
         bool lowValid = TryNumber(LowCutBox.Text, out double low) && low >= FrequencyRange.Minimum && low <= FrequencyRange.Maximum;
         bool highValid = TryNumber(HighCutBox.Text, out double high) && high >= FrequencyRange.Minimum && high <= FrequencyRange.Maximum;
         bool rangeValid = lowValid && highValid && FrequencyRange.IsValidBand(low, high);
-        LowCutBox.BorderBrush = lowValid && rangeValid ? NormalBorder : Invalid;
-        HighCutBox.BorderBrush = highValid && rangeValid ? NormalBorder : Invalid;
+        SetValidationBorder(LowCutBox, lowValid && rangeValid);
+        SetValidationBorder(HighCutBox, highValid && rangeValid);
         if (!rangeValid)
         {
             ValidationLabel.Text = Localization.Text("FrequencyValidation");
@@ -208,7 +212,7 @@ public partial class ShakerCard : UserControl
 
     private static bool TryNumber(string value, out double number) =>
         double.TryParse(value.Trim().Replace(',', '.'), NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign,
-            CultureInfo.InvariantCulture, out number) && double.IsFinite(number);
+            CultureInfo.InvariantCulture, out number) && !double.IsNaN(number) && !double.IsInfinity(number);
 
     private void ShowSavedNumbers()
     {
@@ -219,7 +223,13 @@ public partial class ShakerCard : UserControl
     private void ClearValidation()
     {
         ValidationLabel.Visibility = Visibility.Collapsed;
-        LowCutBox.BorderBrush = NormalBorder;
-        HighCutBox.BorderBrush = NormalBorder;
+        SetValidationBorder(LowCutBox, true);
+        SetValidationBorder(HighCutBox, true);
+    }
+
+    private static void SetValidationBorder(TextBox box, bool valid)
+    {
+        if (valid) box.ClearValue(Control.BorderBrushProperty);
+        else box.BorderBrush = Invalid;
     }
 }

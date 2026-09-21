@@ -29,7 +29,7 @@ public sealed class ShakerSampleProvider : ISampleProvider
         _ring = new float[Math.Max(1, checked(sampleRate * capacityMilliseconds / 1000))];
         _low = lowCutHz;
         _high = highCutHz;
-        _gain = double.IsFinite(gain) ? Math.Clamp(gain, 0, 2) : 1;
+        _gain = Numeric.IsFinite(gain) ? Numeric.Clamp(gain, 0, 2) : 1;
     }
 
     public WaveFormat WaveFormat { get; }
@@ -47,10 +47,33 @@ public sealed class ShakerSampleProvider : ISampleProvider
                 _low = lowCutHz;
                 _high = highCutHz;
             }
-            _gain = double.IsFinite(gain) ? Math.Clamp(gain, 0, 2) : 1;
+            _gain = Numeric.IsFinite(gain) ? Numeric.Clamp(gain, 0, 2) : 1;
         }
     }
 
+    public void Enqueue(float[] monoSamples) => Enqueue(monoSamples, 0, monoSamples?.Length ?? 0);
+
+    public void Enqueue(float[] monoSamples, int offset, int count)
+    {
+        if (monoSamples is null) throw new ArgumentNullException(nameof(monoSamples));
+        if (offset < 0 || count < 0 || offset > monoSamples.Length - count) throw new ArgumentOutOfRangeException(nameof(count));
+        lock (_gate)
+        {
+            if (_muted) return;
+            if (count >= _ring.Length)
+            {
+                offset += count - _ring.Length;
+                count = _ring.Length;
+            }
+            int tail = PrepareEnqueue(count);
+            int first = Math.Min(count, _ring.Length - tail);
+            Array.Copy(monoSamples, offset, _ring, tail, first);
+            Array.Copy(monoSamples, offset + first, _ring, 0, count - first);
+            _count += count;
+        }
+    }
+
+#if !NETFRAMEWORK
     public void Enqueue(ReadOnlySpan<float> monoSamples)
     {
         lock (_gate)
@@ -59,23 +82,29 @@ public sealed class ShakerSampleProvider : ISampleProvider
             if (monoSamples.Length >= _ring.Length)
             {
                 monoSamples = monoSamples[^_ring.Length..];
-                _head = 0;
-                _count = 0;
             }
-            int overflow = Math.Max(0, _count + monoSamples.Length - _ring.Length);
-            _head = (_head + overflow) % _ring.Length;
-            _count -= overflow;
-            int tail = (_head + _count) % _ring.Length;
+            int tail = PrepareEnqueue(monoSamples.Length);
             int first = Math.Min(monoSamples.Length, _ring.Length - tail);
             monoSamples[..first].CopyTo(_ring.AsSpan(tail));
             monoSamples[first..].CopyTo(_ring);
             _count += monoSamples.Length;
         }
     }
+#endif
+
+    // Called while holding _gate; both supported runtimes use the same overflow policy.
+    private int PrepareEnqueue(int count)
+    {
+        if (count >= _ring.Length) _head = _count = 0;
+        int overflow = Math.Max(0, _count + count - _ring.Length);
+        _head = (_head + overflow) % _ring.Length;
+        _count -= overflow;
+        return (_head + _count) % _ring.Length;
+    }
 
     public int Read(float[] buffer, int offset, int count)
     {
-        ArgumentNullException.ThrowIfNull(buffer);
+        if (buffer is null) throw new ArgumentNullException(nameof(buffer));
         if (offset < 0 || count < 0 || offset > buffer.Length - count) throw new ArgumentOutOfRangeException(nameof(count));
         lock (_gate)
         {
@@ -95,7 +124,7 @@ public sealed class ShakerSampleProvider : ISampleProvider
                         _head = (_head + 1) % _ring.Length;
                         _count--;
                     }
-                    _currentFrame = (float)Math.Clamp(_filter.Process(mono) * _gain, -1, 1);
+                    _currentFrame = (float)Numeric.Clamp(_filter.Process(mono) * _gain, -1, 1);
                 }
                 buffer[offset + i] = _currentFrame;
                 _channel = (_channel + 1) % WaveFormat.Channels;

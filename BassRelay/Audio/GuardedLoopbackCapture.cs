@@ -47,7 +47,7 @@ internal sealed class GuardedLoopbackCapture : IDisposable
     {
         lock (_lifecycleGate)
         {
-            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeRequested) != 0, this);
+            if (Volatile.Read(ref _disposeRequested) != 0) throw new ObjectDisposedException(nameof(GuardedLoopbackCapture));
             if (_thread is not null) throw new InvalidOperationException("Захват уже запущен.");
             var thread = new Thread(CaptureLoop) { IsBackground = true, Name = "BassRelay loopback capture" };
             thread.SetApartmentState(ApartmentState.MTA);
@@ -71,7 +71,7 @@ internal sealed class GuardedLoopbackCapture : IDisposable
                 _backend.Start();
                 while (Volatile.Read(ref _stopRequested) == 0)
                 {
-                    _wake.WaitOne(Math.Clamp(_backend.PollIntervalMilliseconds, 1, 100));
+                    _wake.WaitOne(Numeric.Clamp(_backend.PollIntervalMilliseconds, 1, 100));
                     if (Volatile.Read(ref _stopRequested) != 0) break;
                     _backend.Drain(OnData);
                 }

@@ -29,9 +29,9 @@ public sealed class BandPassFilter
 
     public float Process(float sample)
     {
-        double value = float.IsFinite(sample) ? sample : 0;
+        double value = Numeric.IsFinite(sample) ? sample : 0;
         foreach (Biquad section in _sections) value = section.Process(value);
-        if (!double.IsFinite(value) || Math.Abs(value) > float.MaxValue)
+        if (!Numeric.IsFinite(value) || Math.Abs(value) > float.MaxValue)
         {
             Reset();
             return 0;

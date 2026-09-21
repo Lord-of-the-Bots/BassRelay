@@ -7,15 +7,6 @@ using System.Threading.Tasks;
 
 namespace BassRelay.Audio;
 
-public sealed record SimHubGameState(bool GameRunning, bool IsAvailable);
-
-public interface ISimHubGameMonitor : IDisposable
-{
-    event Action? Changed;
-    SimHubGameState State { get; }
-    void SetEnabled(bool enabled);
-}
-
 /// <summary>
 /// Reads SimHub's GameRunning flag away from the audio/UI threads. Audio levels,
 /// ShakeIt configuration, selected devices and GamePaused never determine this state.

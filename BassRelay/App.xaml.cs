@@ -59,7 +59,7 @@ public partial class App : Application
             if (_smokeTest)
                 _settings.Language = e.Args.SkipWhile(a => !a.Equals("--language", StringComparison.OrdinalIgnoreCase)).Skip(1).FirstOrDefault() ?? "system";
             Localization.Apply(_settings.Language);
-            _audio = new AudioEngine(simHubPort: _settings.SimHubPort);
+            _audio = new AudioEngine(new SimHubGameMonitor(port: _settings.SimHubPort), Localization.Text, AppLog.Write);
             var window = new MainWindow(_settings, _audio, SaveSettings);
             MainWindow = window;
             window.ExitRequested += ExitApplication;

@@ -46,28 +46,5 @@ public sealed class SettingsStore
         File.Move(temporary, _path, true);
     }
 
-    public static void Normalize(AppSettings settings)
-    {
-        if (settings.SimHubPort is < 1 or > 65535) settings.SimHubPort = 8888;
-        settings.Shakers ??= [];
-        settings.Shakers.RemoveAll(s => s is null);
-        var ids = new HashSet<Guid>();
-        foreach (var shaker in settings.Shakers)
-        {
-            if (shaker.Id == Guid.Empty || !ids.Add(shaker.Id))
-            {
-                shaker.Id = Guid.NewGuid();
-                ids.Add(shaker.Id);
-            }
-            if (!FrequencyRange.IsValidBand(shaker.LowCutHz, shaker.HighCutHz))
-            {
-                shaker.LowCutHz = 40;
-                shaker.HighCutHz = 90;
-            }
-            // Legacy disabled rows stay silent with the new single 0–100% control.
-            if (!shaker.Enabled) { shaker.Gain = 0; shaker.Enabled = true; }
-            shaker.Gain = double.IsFinite(shaker.Gain) ? Math.Clamp(shaker.Gain, 0, 1) : 1;
-            if (string.IsNullOrWhiteSpace(shaker.DeviceId)) shaker.DeviceId = null;
-        }
-    }
+    public static void Normalize(AppSettings settings) => SettingsNormalizer.Normalize(settings);
 }

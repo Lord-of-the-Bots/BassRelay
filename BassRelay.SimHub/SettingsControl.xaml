@@ -1,0 +1,45 @@
+<UserControl x:Class="BassRelaySimHub.SettingsControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:styles="clr-namespace:SimHub.Plugins.Styles;assembly=SimHub.Plugins"
+             Foreground="{DynamicResource TextBrush}" Background="{DynamicResource WindowBackgroundBrush}"
+             HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+    <UserControl.Resources>
+        <DataTemplate x:Key="DeviceNameTemplate">
+            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+        </DataTemplate>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="10,0,20,16" MaxWidth="880" HorizontalAlignment="Left">
+            <styles:SHSection Title="{DynamicResource PlaybackSection}" ShowSeparator="True">
+                <StackPanel>
+                    <WrapPanel Margin="0,0,0,6" VerticalAlignment="Center">
+                        <styles:SHButtonPrimary x:Name="PauseButton" Content="{DynamicResource PauseRelay}"
+                                                Click="PauseClicked" MinWidth="150" Margin="0,0,12,0" />
+                        <TextBlock x:Name="PlaybackStatus" VerticalAlignment="Center" FontWeight="SemiBold"
+                                   TextWrapping="Wrap" MaxWidth="520" Margin="0,6" />
+                    </WrapPanel>
+                    <TextBlock Text="{DynamicResource ManualPauseHelp}" TextWrapping="Wrap" Opacity="0.8" />
+                    <TextBlock Text="{DynamicResource PluginPriorityHelp}" TextWrapping="Wrap" Opacity="0.8" Margin="0,6,0,0" />
+                    <TextBlock x:Name="SourceLabel" TextWrapping="Wrap" Margin="0,8,0,0" />
+                    <TextBlock x:Name="ErrorLabel" TextWrapping="Wrap" Margin="0,8,0,0"
+                               Foreground="{DynamicResource AccentColorBrush}" Visibility="Collapsed" />
+                    <styles:SHToggleCheckbox x:Name="AutoPauseBox" Checked="SettingsChanged" Unchecked="SettingsChanged"
+                                             Margin="0,12,0,4" ToolTip="{DynamicResource PriorityHelp}">
+                        <TextBlock Text="{DynamicResource AutoPauseToggle}" TextWrapping="Wrap" />
+                    </styles:SHToggleCheckbox>
+                    <TextBlock Text="{DynamicResource AutoPauseDescription}" TextWrapping="Wrap" Opacity="0.8" />
+                </StackPanel>
+            </styles:SHSection>
+            <styles:SHSection Title="{DynamicResource ShakersSection}" ShowSeparator="True">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource SourceVolumeHelp}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,5" />
+                    <TextBlock Text="{DynamicResource AutoDevicesHelp}" TextWrapping="Wrap" Opacity="0.8" Margin="0,0,0,4" />
+                    <StackPanel x:Name="ShakerCards" />
+                    <styles:SHButtonSecondary x:Name="AddShakerButton" Content="{DynamicResource AddShaker}"
+                                              Click="AddShakerClicked" HorizontalAlignment="Left" Margin="0,4,0,0" />
+                </StackPanel>
+            </styles:SHSection>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

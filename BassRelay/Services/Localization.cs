@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Windows;
 
 namespace BassRelay.Services;
 
 public static class Localization
 {
-    private static readonly CultureInfo SystemCulture = CultureInfo.CurrentUICulture;
+    private static readonly CultureInfo SystemCulture = ReadWindowsLanguage();
     private static string _language = Resolve(SystemCulture.Name);
     public static string CurrentLanguage => _language;
     public static event Action? Changed;
@@ -31,7 +32,7 @@ public static class Localization
         ["Pause"] = ["Пауза", "Pause", "Pausar", "Pausar"],
         ["Resume"] = ["Продолжить", "Resume", "Retomar", "Reanudar"],
         ["PauseHelp"] = ["Остановить подачу Bass Relay на все шейкеры до нажатия «Продолжить».", "Pause Bass Relay on all shakers until you choose Resume.", "Pausar o Bass Relay em todos os shakers até você escolher Retomar.", "Pausar Bass Relay en todos los shakers hasta que elijas Reanudar."],
-        ["ManuallyPaused"] = ["Bass Relay на ручной паузе. Нажмите «Продолжить» в окне или в меню значка в трее.", "Bass Relay is manually paused. Choose Resume in the window or the system tray menu.", "O Bass Relay foi pausado manualmente. Escolha Retomar na janela ou no menu da bandeja do sistema.", "Bass Relay está en pausa manual. Elige Reanudar en la ventana o en el menú de la bandeja del sistema."],
+        ["ManuallyPaused"] = ["Bass Relay на ручной паузе. Нажмите «Продолжить» в Bass Relay.", "Bass Relay is manually paused. Choose Resume in Bass Relay.", "O Bass Relay foi pausado manualmente. Escolha Retomar no Bass Relay.", "Bass Relay está en pausa manual. Elige Reanudar en Bass Relay."],
         ["AddShaker"] = ["＋ Добавить шейкер", "＋ Add shaker", "＋ Adicionar shaker", "＋ Añadir shaker"],
         ["SelectShakerDevice"] = ["Выберите звуковую карту шейкера {0}", "Select the sound card for shaker {0}", "Selecione a placa de som do shaker {0}", "Selecciona la tarjeta de sonido del shaker {0}"],
         ["ShakerDevice"] = ["Звуковая карта шейкера", "Shaker sound card", "Placa de som do shaker", "Tarjeta de sonido del shaker"],
@@ -79,7 +80,11 @@ public static class Localization
         ["AudioProcessingError"] = ["Ошибка обработки системного звука. {0}", "System audio processing error. {0}", "Erro ao processar o áudio do sistema. {0}", "Error al procesar el audio del sistema. {0}"],
         ["OutputStopped"] = ["Устройство вывода остановлено.", "Output device stopped.", "O dispositivo de saída parou.", "Se detuvo el dispositivo de salida."],
         ["SimHubGameRunning"] = ["Игра запущена, и SimHub получает от неё данные. Bass Relay приостановил передачу на все шейкеры. Автопаузу можно отключить в настройках.", "A game is running and SimHub is receiving its data. Bass Relay has paused audio to all shakers. You can turn off auto-pause in Settings.", "Um jogo está em execução e o SimHub está recebendo seus dados. O Bass Relay pausou o áudio para todos os shakers. Você pode desativar a pausa automática nas configurações.", "Hay un juego en marcha y SimHub está recibiendo sus datos. Bass Relay ha pausado el audio a todos los shakers. Puedes desactivar la pausa automática en Ajustes."],
-        ["ConnectingDevice"] = ["Подключение…", "Connecting…", "Conectando…", "Conectando…"]
+        ["ConnectingDevice"] = ["Подключение…", "Connecting…", "Conectando…", "Conectando…"],
+        ["OtherInstanceOwnsAudio"] = ["Звук уже обрабатывает другая копия Bass Relay. Закройте её, чтобы использовать эту копию.", "Another copy of Bass Relay is already processing audio. Close it to use this copy.", "Outra instância do Bass Relay já está processando o áudio. Feche-a para usar esta instância.", "Otra instancia de Bass Relay ya está procesando el audio. Ciérrala para usar esta instancia."],
+        ["WaitingSimHubState"] = ["Ожидание состояния игры от SimHub. До первого обновления звук приостановлен.", "Waiting for the game status from SimHub. Audio is paused until the first update.", "Aguardando o estado do jogo no SimHub. O áudio fica pausado até a primeira atualização.", "Esperando el estado del juego de SimHub. El audio está en pausa hasta la primera actualización."],
+        ["PluginStopped"] = ["Плагин Bass Relay остановлен.", "The Bass Relay plugin is stopped.", "O plugin Bass Relay está parado.", "El plugin Bass Relay está detenido."],
+        ["PluginStartError"] = ["Не удалось запустить плагин Bass Relay. {0}", "Could not start the Bass Relay plugin. {0}", "Não foi possível iniciar o plugin Bass Relay. {0}", "No se pudo iniciar el plugin Bass Relay. {0}"]
     };
 
     public static string Text(string key, params object[] args)
@@ -93,12 +98,14 @@ public static class Localization
     public static bool IsText(string key, string value) =>
         Strings.TryGetValue(key, out var translations) && Array.Exists(translations, text => text == value);
 
-    public static void Apply(string? language)
+    public static void Apply(string? language, ResourceDictionary? resources = null)
     {
-        _language = Resolve(string.IsNullOrWhiteSpace(language) || language.Equals("system", StringComparison.OrdinalIgnoreCase)
+        _language = Resolve(string.IsNullOrWhiteSpace(language) || language!.Equals("system", StringComparison.OrdinalIgnoreCase)
             ? SystemCulture.Name : language);
-        if (Application.Current is { } application)
-            foreach (string key in Strings.Keys) application.Resources[key] = Text(key);
+        // An embedded page owns its translations; never change the host's resources.
+        ResourceDictionary? target = resources ?? Application.Current?.Resources;
+        if (target is not null)
+            foreach (string key in Strings.Keys) target[key] = Text(key);
         Changed?.Invoke();
     }
 
@@ -109,4 +116,14 @@ public static class Localization
         if (language.StartsWith("es", StringComparison.OrdinalIgnoreCase)) return "es";
         return "en";
     }
+
+    private static CultureInfo ReadWindowsLanguage()
+    {
+        // Use the Windows user's display language without changing thread culture.
+        try { return CultureInfo.GetCultureInfo(GetUserDefaultUILanguage()); }
+        catch (CultureNotFoundException) { return CultureInfo.CurrentUICulture; }
+    }
+
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    private static extern ushort GetUserDefaultUILanguage();
 }

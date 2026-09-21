@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using BassRelay.Models;
-using BassRelay.Services;
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
 using NAudio.Wave;
@@ -25,13 +24,17 @@ public sealed class AudioEngine : IAudioEngine
     private readonly Dictionary<Guid, OutputSession> _outputs = new();
     private readonly Dictionary<Guid, (DateTime RetryAt, string Message)> _outputErrors = new();
     private readonly ISimHubGameMonitor _simHubMonitor;
+    private readonly Func<string, object[], string> _text;
+    private readonly Action<string, Exception?> _log;
+    private readonly bool _guardDesktopInstance;
     private readonly Stopwatch _uptime = Stopwatch.StartNew();
     private bool _desiredSimHubEnabled = true;
     private bool _desiredPaused, _isPaused;
     private int _manualPauseRequested, _simHubPauseRequested;
     private ShakerSettings[] _desired = [];
     private OutputSession[] _publishedOutputs = [];
-    private AudioEngineSnapshot _snapshot = new(null, Localization.Text("FindingDefaultDevice"), [], []);
+    private AudioEngineSnapshot _snapshot;
+    private Mutex? _audioOwnership, _desktopOwnership;
     private MMDeviceEnumerator? _enumerator;
     private DeviceNotifications? _notifications;
     private CaptureSession? _capture;
@@ -40,9 +43,14 @@ public sealed class AudioEngine : IAudioEngine
     private long _configurationVersion, _appliedConfigurationVersion = -1;
     private int _sourceEpoch, _resetRequested, _disposed, _notificationPending;
 
-    public AudioEngine(ISimHubGameMonitor? simHubMonitor = null, int simHubPort = 8888)
+    public AudioEngine(ISimHubGameMonitor simHubMonitor, Func<string, object[], string> text,
+        Action<string, Exception?> log, bool guardDesktopInstance = false)
     {
-        _simHubMonitor = simHubMonitor ?? new SimHubGameMonitor(port: simHubPort);
+        _simHubMonitor = simHubMonitor ?? throw new ArgumentNullException(nameof(simHubMonitor));
+        _text = text ?? throw new ArgumentNullException(nameof(text));
+        _log = log ?? throw new ArgumentNullException(nameof(log));
+        _guardDesktopInstance = guardDesktopInstance;
+        _snapshot = new(null, Text("FindingDefaultDevice"), [], []);
         _simHubMonitor.Changed += SimHubStateChanged;
         _worker = new Thread(WorkerLoop) { IsBackground = true, Name = "BassRelay audio control" };
         _worker.SetApartmentState(ApartmentState.MTA);
@@ -54,7 +62,7 @@ public sealed class AudioEngine : IAudioEngine
 
     public void Configure(IReadOnlyList<ShakerSettings> shakers, bool pauseForSimHub = true, bool isPaused = false)
     {
-        ArgumentNullException.ThrowIfNull(shakers);
+        if (shakers is null) throw new ArgumentNullException(nameof(shakers));
         if (Volatile.Read(ref _disposed) != 0) return;
         bool pauseChanged;
         lock (_configurationGate)
@@ -80,17 +88,29 @@ public sealed class AudioEngine : IAudioEngine
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _simHubMonitor.Changed -= SimHubStateChanged;
-        _simHubMonitor.Dispose();
         lock (_routingGate)
         {
             _sourceEpoch++;
             MuteOutputs();
         }
+        try { _simHubMonitor.Dispose(); }
+        catch (Exception exception) { Log("Dispose game monitor", exception); }
         Signal(allowDisposed: true);
         // A stalled driver must not freeze application shutdown forever. The background
         // worker retains ownership and completes cleanup when the driver returns.
         if (Thread.CurrentThread != _worker) _worker.Join(TimeSpan.FromSeconds(3));
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Waits for actual driver cleanup after Dispose. Only a background lifecycle owner
+    /// may call this: an unresponsive audio driver can keep the wait pending indefinitely.
+    /// </summary>
+    public void WaitForShutdown()
+    {
+        if (Volatile.Read(ref _disposed) == 0)
+            throw new InvalidOperationException("Dispose the audio engine before waiting for shutdown.");
+        if (Thread.CurrentThread != _worker) _worker.Join();
     }
 
     private void WorkerLoop()
@@ -109,7 +129,7 @@ public sealed class AudioEngine : IAudioEngine
                         _notifications = new DeviceNotifications(this);
                         _enumerator.RegisterEndpointNotificationCallback(_notifications);
                     }
-                    // SimHub changes wake this thread; HTTP never runs on it.
+                    // The host's game monitor wakes this thread; no HTTP dependency lives here.
                     if (reconcileRequested || _uptime.Elapsed >= nextReconcile)
                     {
                         Reconcile();
@@ -118,13 +138,13 @@ public sealed class AudioEngine : IAudioEngine
                 }
                 catch (Exception exception)
                 {
-                    AppLog.Write("Audio engine recovery", exception);
+                    Log("Audio engine recovery", exception);
                     StopPipeline();
                     ReleaseEnumerator();
                     ShakerSettings[] shakers;
                     lock (_configurationGate) shakers = _desired;
-                    string message = Localization.Text("AudioOpenError", Describe(exception));
-                    Publish(new(null, Localization.Text("AudioServiceUnavailable"), [],
+                    string message = Text("AudioOpenError", Describe(exception));
+                    Publish(new(null, Text("AudioServiceUnavailable"), [],
                         shakers.Select(s => new ShakerStatus(s.Id, message, false, false)).ToArray(), message));
                 }
                 if (Volatile.Read(ref _disposed) == 0)
@@ -178,10 +198,10 @@ public sealed class AudioEngine : IAudioEngine
             }
         }
         devices.Sort((a, b) => StringComparer.CurrentCultureIgnoreCase.Compare(a.Name, b.Name));
-        var available = devices.Select(d => d.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var available = new HashSet<string>(devices.Select(d => d.Id), StringComparer.OrdinalIgnoreCase);
 
         string? sourceId = null;
-        string sourceName = Localization.Text("DefaultDeviceMissing");
+        string sourceName = Text("DefaultDeviceMissing");
         try
         {
             using MMDevice source = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
@@ -195,7 +215,7 @@ public sealed class AudioEngine : IAudioEngine
             bool failed = _capture.HasFailed;
             string? failure = _capture.FailureMessage;
             StopPipeline();
-            _captureError = failed ? failure ?? Localization.Text("CaptureStopped") : null;
+            _captureError = failed ? failure ?? Text("CaptureStopped") : null;
             _captureRetryAt = failed ? DateTime.UtcNow.AddSeconds(3) : DateTime.MinValue;
         }
 
@@ -205,15 +225,17 @@ public sealed class AudioEngine : IAudioEngine
         foreach (ShakerSettings shaker in settings)
         {
             string? blockReason = RoutingPolicy.GetBlockReason(shaker, sourceId, claimed);
-            if (blockReason is not null) statuses[shaker.Id] = new(shaker.Id, blockReason, true, false);
-            else if (!shaker.Enabled) statuses[shaker.Id] = new(shaker.Id, Localization.Text("ShakerDisabled"), false, false);
-            else if (string.IsNullOrWhiteSpace(shaker.DeviceId)) statuses[shaker.Id] = new(shaker.Id, Localization.Text("SelectDevice"), false, false);
-            else if (_isPaused) statuses[shaker.Id] = new(shaker.Id, Localization.Text("ManuallyPaused"), true, false);
-            else if (Volatile.Read(ref _simHubPauseRequested) != 0) statuses[shaker.Id] = new(shaker.Id, Localization.Text("SimHubGameRunning"), true, false);
-            else if (!available.Contains(shaker.DeviceId)) statuses[shaker.Id] = new(shaker.Id, Localization.Text("DeviceDisconnected"), false, false);
-            else if (sourceId is null) statuses[shaker.Id] = new(shaker.Id, Localization.Text("WaitingDefaultDevice"), false, false);
-            else if (!ValidBand(shaker)) statuses[shaker.Id] = new(shaker.Id, Localization.Text("InvalidFrequencyBand"), false, false);
-            else candidates.TryAdd(shaker.Id, shaker);
+            if (blockReason is not null) statuses[shaker.Id] = new(shaker.Id, Text(blockReason), true, false);
+            else if (!shaker.Enabled) statuses[shaker.Id] = new(shaker.Id, Text("ShakerDisabled"), false, false);
+            else if (string.IsNullOrWhiteSpace(shaker.DeviceId)) statuses[shaker.Id] = new(shaker.Id, Text("SelectDevice"), false, false);
+            else if (_isPaused) statuses[shaker.Id] = new(shaker.Id, Text("ManuallyPaused"), true, false);
+            else if (Volatile.Read(ref _simHubPauseRequested) != 0)
+                statuses[shaker.Id] = new(shaker.Id,
+                    Text(_simHubMonitor.State.IsAvailable ? "SimHubGameRunning" : "WaitingSimHubState"), true, false);
+            else if (!available.Contains(shaker.DeviceId!)) statuses[shaker.Id] = new(shaker.Id, Text("DeviceDisconnected"), false, false);
+            else if (sourceId is null) statuses[shaker.Id] = new(shaker.Id, Text("WaitingDefaultDevice"), false, false);
+            else if (!ValidBand(shaker)) statuses[shaker.Id] = new(shaker.Id, Text("InvalidFrequencyBand"), false, false);
+            else if (!candidates.ContainsKey(shaker.Id)) candidates.Add(shaker.Id, shaker);
         }
 
         foreach (var pair in _outputs.ToArray())
@@ -222,7 +244,7 @@ public sealed class AudioEngine : IAudioEngine
                 !SameDevice(pair.Value.DeviceId, shaker.DeviceId) || pair.Value.HasFailed)
             {
                 if (pair.Value.HasFailed)
-                    _outputErrors[pair.Key] = (DateTime.UtcNow.AddSeconds(3), pair.Value.FailureMessage ?? Localization.Text("PlaybackStopped"));
+                    _outputErrors[pair.Key] = (DateTime.UtcNow.AddSeconds(3), pair.Value.FailureMessage ?? Text("PlaybackStopped"));
                 RemoveOutput(pair.Key);
             }
         }
@@ -232,20 +254,28 @@ public sealed class AudioEngine : IAudioEngine
             StopPipeline();
             _captureError = null;
         }
+        else if (!TryAcquireAudioOwnership())
+        {
+            string message = Text("OtherInstanceOwnsAudio");
+            foreach (ShakerSettings shaker in candidates.Values)
+                statuses[shaker.Id] = new(shaker.Id, message, true, false);
+            Publish(new(sourceId, sourceName, devices.ToArray(), settings.Select(s => statuses[s.Id]).ToArray(), message));
+            return;
+        }
         else if (_capture is null && DateTime.UtcNow >= _captureRetryAt)
         {
             try
             {
-                var capture = new CaptureSession(_enumerator.GetDevice(sourceId!), OnCaptureData, Signal);
+                var capture = new CaptureSession(_enumerator.GetDevice(sourceId!), OnCaptureData, Signal, this);
                 _capture = capture;
                 capture.Start();
                 _captureError = null;
             }
             catch (Exception exception)
             {
-                AppLog.Write("Start system audio capture", exception);
+                Log("Start system audio capture", exception);
                 StopPipeline();
-                _captureError = Localization.Text("CaptureError", Describe(exception));
+                _captureError = Text("CaptureError", Describe(exception));
                 _captureRetryAt = DateTime.UtcNow.AddSeconds(3);
             }
         }
@@ -254,19 +284,19 @@ public sealed class AudioEngine : IAudioEngine
         {
             if (_capture is null)
             {
-                statuses[shaker.Id] = new(shaker.Id, Localization.Text("RetryAutomatically", _captureError ?? Localization.Text("CaptureUnavailable")), false, false);
+                statuses[shaker.Id] = new(shaker.Id, Text("RetryAutomatically", _captureError ?? Text("CaptureUnavailable")), false, false);
                 continue;
             }
             if (_outputErrors.TryGetValue(shaker.Id, out var error) && DateTime.UtcNow < error.RetryAt)
             {
-                statuses[shaker.Id] = new(shaker.Id, Localization.Text("RetryAutomatically", error.Message), false, false);
+                statuses[shaker.Id] = new(shaker.Id, Text("RetryAutomatically", error.Message), false, false);
                 continue;
             }
             try
             {
                 if (!_outputs.TryGetValue(shaker.Id, out OutputSession? output))
                 {
-                    output = new OutputSession(_enumerator.GetDevice(shaker.DeviceId!), _capture.Format.SampleRate, shaker, Signal);
+                    output = new OutputSession(_enumerator.GetDevice(shaker.DeviceId!), _capture.Format.SampleRate, shaker, Signal, this);
                     _outputs.Add(shaker.Id, output);
                     PublishOutputs();
                     // A default-device notification can arrive during Init. Registration and
@@ -280,23 +310,23 @@ public sealed class AudioEngine : IAudioEngine
                     _outputErrors.Remove(shaker.Id);
                 }
                 else output.Provider.Configure(shaker.LowCutHz, shaker.HighCutHz, shaker.Gain);
-                statuses[shaker.Id] = new(shaker.Id, Localization.Text("ShakerRunning", shaker.LowCutHz.ToString("0.#"), shaker.HighCutHz.ToString("0.#")), false, true);
+                statuses[shaker.Id] = new(shaker.Id, Text("ShakerRunning", shaker.LowCutHz.ToString("0.#"), shaker.HighCutHz.ToString("0.#")), false, true);
             }
             catch (Exception exception)
             {
-                AppLog.Write("Start shaker output", exception);
+                Log("Start shaker output", exception);
                 RemoveOutput(shaker.Id);
-                string message = Localization.Text("OutputOpenError", Describe(exception));
+                string message = Text("OutputOpenError", Describe(exception));
                 _outputErrors[shaker.Id] = (DateTime.UtcNow.AddSeconds(3), message);
-                statuses[shaker.Id] = new(shaker.Id, Localization.Text("RetryAutomatically", message), false, false);
+                statuses[shaker.Id] = new(shaker.Id, Text("RetryAutomatically", message), false, false);
             }
         }
         Publish(new(sourceId, sourceName, devices.ToArray(), settings.Select(s => statuses[s.Id]).ToArray(), _captureError));
     }
 
-    private void OnCaptureData(ReadOnlySpan<float> mono)
+    private void OnCaptureData(float[] mono, int count)
     {
-        foreach (OutputSession output in Volatile.Read(ref _publishedOutputs)) output.Provider.Enqueue(mono);
+        foreach (OutputSession output in Volatile.Read(ref _publishedOutputs)) output.Provider.Enqueue(mono, 0, count);
     }
 
     private void SimHubStateChanged()
@@ -335,7 +365,8 @@ public sealed class AudioEngine : IAudioEngine
 
     private void RemoveOutput(Guid id)
     {
-        if (!_outputs.Remove(id, out OutputSession? output)) return;
+        if (!_outputs.TryGetValue(id, out OutputSession? output)) return;
+        _outputs.Remove(id);
         output.Provider.SetMuted(true);
         PublishOutputs();
         output.Dispose();
@@ -348,6 +379,64 @@ public sealed class AudioEngine : IAudioEngine
         _capture = null;
         capture?.Dispose();
         foreach (Guid id in _outputs.Keys.ToArray()) RemoveOutput(id);
+        // Both named mutexes belong to this worker. Never release them from Dispose's
+        // caller after its bounded join: drivers may still be closing on this thread.
+        ReleaseAudioOwnership();
+    }
+
+    private bool TryAcquireAudioOwnership()
+    {
+        if (_audioOwnership is not null) return true;
+        Mutex? audio = null, desktop = null;
+        try
+        {
+            audio = TryOwnMutex(@"Local\BassRelay.AudioPlayback");
+            if (audio is null) return false;
+            if (_guardDesktopInstance)
+            {
+                // The existing standalone app (including released 1.4.1) guards its
+                // lifetime with this name. Owning it also prevents an old copy starting.
+                desktop = TryOwnMutex(@"Local\BassRelay.Application");
+                if (desktop is null) return false;
+            }
+            _audioOwnership = audio;
+            _desktopOwnership = desktop;
+            audio = desktop = null;
+            return true;
+        }
+        finally
+        {
+            ReleaseMutex(desktop);
+            ReleaseMutex(audio);
+        }
+    }
+
+    private static Mutex? TryOwnMutex(string name)
+    {
+        var mutex = new Mutex(false, name);
+        bool owned = false;
+        try
+        {
+            try { owned = mutex.WaitOne(0); }
+            catch (AbandonedMutexException) { owned = true; }
+            return owned ? mutex : null;
+        }
+        finally { if (!owned) mutex.Dispose(); }
+    }
+
+    private void ReleaseAudioOwnership()
+    {
+        ReleaseMutex(_desktopOwnership);
+        _desktopOwnership = null;
+        ReleaseMutex(_audioOwnership);
+        _audioOwnership = null;
+    }
+
+    private static void ReleaseMutex(Mutex? mutex)
+    {
+        if (mutex is null) return;
+        try { mutex.ReleaseMutex(); }
+        finally { mutex.Dispose(); }
     }
 
     private void Signal() => Signal(false);
@@ -393,7 +482,13 @@ public sealed class AudioEngine : IAudioEngine
 
     private static bool SameDevice(string? left, string? right) => string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
     private static bool ValidBand(ShakerSettings settings) => FrequencyRange.IsValidBand(settings.LowCutHz, settings.HighCutHz);
-    private static string Describe(Exception exception) => Localization.Text("ErrorCode", exception.HResult.ToString("X8"));
+    private string Describe(Exception exception) => Text("ErrorCode", exception.HResult.ToString("X8"));
+    private string Text(string key, params object[] args) => _text(key, args);
+    private void Log(string message, Exception? exception)
+    {
+        try { _log(message, exception); }
+        catch { /* Host logging must not interrupt audio cleanup or recovery. */ }
+    }
 
     private sealed class DeviceNotifications(AudioEngine owner) : IMMNotificationClient
     {
@@ -412,7 +507,7 @@ public sealed class AudioEngine : IAudioEngine
         }
     }
 
-    private delegate void MonoDataHandler(ReadOnlySpan<float> mono);
+    private delegate void MonoDataHandler(float[] mono, int count);
 
     private sealed class CaptureSession : IDisposable
     {
@@ -420,15 +515,17 @@ public sealed class AudioEngine : IAudioEngine
         private readonly GuardedLoopbackCapture _capture;
         private readonly MonoDataHandler _onData;
         private readonly Action _signal;
+        private readonly AudioEngine _owner;
         private float[] _mono = [];
         private int _failed, _stopping;
         private string? _failureMessage;
 
-        public CaptureSession(MMDevice device, MonoDataHandler onData, Action signal)
+        public CaptureSession(MMDevice device, MonoDataHandler onData, Action signal, AudioEngine owner)
         {
             _device = device;
             _onData = onData;
             _signal = signal;
+            _owner = owner;
             try
             {
                 DeviceId = device.ID;
@@ -460,12 +557,12 @@ public sealed class AudioEngine : IAudioEngine
             {
                 int frames = args.BytesRecorded / Format.BlockAlign;
                 if (_mono.Length < frames) _mono = new float[frames];
-                int converted = AudioSampleConverter.ToMono(args.Buffer.AsSpan(0, args.BytesRecorded), Format, _mono);
-                _onData(_mono.AsSpan(0, converted));
+                int converted = AudioSampleConverter.ToMono(args.Buffer, args.BytesRecorded, Format, _mono);
+                _onData(_mono, converted);
             }
             catch (Exception exception)
             {
-                _failureMessage = Localization.Text("AudioProcessingError", Describe(exception));
+                _failureMessage = _owner.Text("AudioProcessingError", _owner.Describe(exception));
                 Interlocked.Exchange(ref _failed, 1);
                 _signal();
             }
@@ -474,7 +571,7 @@ public sealed class AudioEngine : IAudioEngine
         private void RecordingStopped(object? sender, StoppedEventArgs args)
         {
             if (Volatile.Read(ref _stopping) != 0) return;
-            _failureMessage = Localization.Text("CaptureStopped") + (args.Exception is { } error ? " " + Describe(error) : "");
+            _failureMessage = _owner.Text("CaptureStopped") + (args.Exception is { } error ? " " + _owner.Describe(error) : "");
             Interlocked.Exchange(ref _failed, 1);
             _signal();
         }
@@ -494,13 +591,15 @@ public sealed class AudioEngine : IAudioEngine
         private readonly MMDevice _device;
         private readonly WasapiOut _output;
         private readonly Action _signal;
+        private readonly AudioEngine _owner;
         private int _failed, _stopping;
         private string? _failureMessage;
 
-        public OutputSession(MMDevice device, int sampleRate, ShakerSettings settings, Action signal)
+        public OutputSession(MMDevice device, int sampleRate, ShakerSettings settings, Action signal, AudioEngine owner)
         {
             _device = device;
             _signal = signal;
+            _owner = owner;
             try
             {
                 DeviceId = device.ID;
@@ -531,7 +630,7 @@ public sealed class AudioEngine : IAudioEngine
         {
             if (Volatile.Read(ref _stopping) != 0) return;
             Provider.SetMuted(true);
-            _failureMessage = Localization.Text("OutputStopped") + (args.Exception is { } error ? " " + Describe(error) : "");
+            _failureMessage = _owner.Text("OutputStopped") + (args.Exception is { } error ? " " + _owner.Describe(error) : "");
             Interlocked.Exchange(ref _failed, 1);
             _signal();
         }

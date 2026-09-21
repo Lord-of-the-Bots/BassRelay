@@ -17,5 +17,8 @@
   <ItemGroup>
     <Resource Include="Assets/BassRelay.ico" />
     <PackageReference Include="NAudio" Version="2.2.1" />
+    <ProjectReference Include="../BassRelay.Audio/BassRelay.Audio.csproj" />
+    <Compile Remove="Audio/**/*.cs;Models/**/*.cs" />
+    <Compile Include="Audio/SimHubGameMonitor.cs" />
   </ItemGroup>
 </Project>

@@ -1,23 +1,22 @@
 using System;
 using System.Collections.Generic;
 using BassRelay.Models;
-using BassRelay.Services;
 
 namespace BassRelay.Audio;
 
 public static class RoutingPolicy
 {
-    public static string DefaultDeviceMessage => Localization.Text("DefaultDeviceBlocked");
+    public const string DefaultDeviceMessage = "DefaultDeviceBlocked";
 
-    /// <summary>Claims enabled destinations in display order so each endpoint receives one stream.</summary>
+    /// <summary>Claims enabled destinations in display order and returns a host-localized message key.</summary>
     public static string? GetBlockReason(ShakerSettings shaker, string? sourceDeviceId, ISet<string> claimedTargets)
     {
-        ArgumentNullException.ThrowIfNull(shaker);
-        ArgumentNullException.ThrowIfNull(claimedTargets);
+        if (shaker is null) throw new ArgumentNullException(nameof(shaker));
+        if (claimedTargets is null) throw new ArgumentNullException(nameof(claimedTargets));
         if (string.IsNullOrWhiteSpace(shaker.DeviceId)) return null;
         if (string.Equals(shaker.DeviceId, sourceDeviceId, StringComparison.OrdinalIgnoreCase)) return DefaultDeviceMessage;
-        if (shaker.Enabled && !claimedTargets.Add(shaker.DeviceId))
-            return Localization.Text("DuplicateDeviceBlocked");
+        if (shaker.Enabled && !claimedTargets.Add(shaker.DeviceId!))
+            return "DuplicateDeviceBlocked";
         return null;
     }
 }

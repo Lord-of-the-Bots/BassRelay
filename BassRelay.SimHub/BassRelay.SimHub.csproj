@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <OutputType>Library</OutputType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>BassRelay.SimHub</AssemblyName>
+    <Version>0.3.0</Version>
+    <SimHubDir Condition="'$(SimHubDir)' == '' and '$(SIMHUB_INSTALL_PATH)' != ''">$(SIMHUB_INSTALL_PATH)</SimHubDir>
+    <SimHubDir Condition="'$(SimHubDir)' == ''">$(MSBuildProgramFiles32)\SimHub</SimHubDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../BassRelay.Audio/BassRelay.Audio.csproj" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="SimHub.Plugins"><HintPath>$(SimHubDir)\SimHub.Plugins.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="GameReaderCommon"><HintPath>$(SimHubDir)\GameReaderCommon.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="SimHub.Logging"><HintPath>$(SimHubDir)\SimHub.Logging.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="log4net"><HintPath>$(SimHubDir)\log4net.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="WoteverLocalization"><HintPath>$(SimHubDir)\WoteverLocalization.dll</HintPath><Private>false</Private></Reference>
+    <EmbeddedResource Include="Resources/*.xml">
+      <LogicalName>BassRelay.SimHub.Resources.%(Filename)%(Extension)</LogicalName>
+      <WithCulture>false</WithCulture>
+    </EmbeddedResource>
+    <Compile Include="../BassRelay/UI/ShakerCard.xaml.cs" Link="UI/ShakerCard.xaml.cs" />
+  </ItemGroup>
+  <Target Name="CheckSimHubSdk" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(SimHubDir)\SimHub.Plugins.dll')" Text="Set SimHubDir to the SimHub installation folder, e.g. -p:SimHubDir=E:\SimHub. No host DLLs are distributed with this plugin." />
+  </Target>
+</Project>
