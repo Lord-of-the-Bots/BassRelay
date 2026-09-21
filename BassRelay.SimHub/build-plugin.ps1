@@ -1,6 +1,6 @@
 param(
     [string]$SimHubDirectory,
-    [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\output\BassRelay-SimHub-preview')
+    [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\output\BassRelay-SimHub')
 )
 $ErrorActionPreference = 'Stop'
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
@@ -31,7 +31,7 @@ New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $pluginFiles = @('BassRelay.SimHub.dll', 'BassRelay.Audio.dll')
 foreach ($file in $pluginFiles) { Copy-Item -LiteralPath (Join-Path $pluginBin $file) -Destination $OutputDirectory -Force }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md') -Destination $OutputDirectory -Force
-$archivePath = Join-Path (Split-Path -Parent ([IO.Path]::GetFullPath($OutputDirectory))) 'BassRelay-SimHub-0.3.0-preview.zip'
+$archivePath = Join-Path (Split-Path -Parent ([IO.Path]::GetFullPath($OutputDirectory))) 'BassRelay-SimHub-0.3.0.zip'
 # Explicit files prevent unrelated logs, settings or test tools entering the package.
 $archiveFiles = @($pluginFiles + 'README.md' | ForEach-Object { Join-Path $OutputDirectory $_ })
 Compress-Archive -LiteralPath $archiveFiles -DestinationPath $archivePath -Force

@@ -1,12 +1,12 @@
-# Bass Relay for SimHub — 0.3.0 preview
+# Bass Relay for SimHub — 0.3.0
 
 Movies and music through your cockpit's bass shakers, with controls inside SimHub.
 
-This preview is a native .NET Framework plugin. Its audio engine runs inside SimHub; there is no background Bass Relay EXE and no need to enable SimHub's web server.
+This is a native .NET Framework plugin. Its audio engine runs inside SimHub; there is no background Bass Relay EXE and no need to enable SimHub's web server.
 
 ## Install
 
-Requires the Windows .NET Framework version of SimHub. This preview uses the SimHub 9.12.8 SDK and targets its 32-bit .NET Framework 4.8 host.
+Requires the Windows .NET Framework version of SimHub. The plugin uses the SimHub 9.12.8 SDK and targets its 32-bit .NET Framework 4.8 host.
 
 1. Exit SimHub. If you are switching permanently to the plugin, you can turn off **Start with Windows** in the standalone Bass Relay app.
 2. Extract the ZIP. Copy **BassRelay.SimHub.dll** and **BassRelay.Audio.dll** into your SimHub installation folder, beside **SimHubWPF.exe**. If Windows shows an **Unblock** option in the ZIP's Properties, unblock it before extracting.
@@ -41,7 +41,7 @@ If the standalone app cannot close normally, the plugin waits without starting a
 
 To update, close SimHub and replace only the two Bass Relay DLLs. Do not replace SimHub's NAudio or other dependencies. To remove, disable Bass Relay, close SimHub and delete those two DLLs. Saved settings can be kept for later.
 
-This is a preview release. Feedback about device compatibility and game transitions is welcome in [GitHub issues](https://github.com/Lord-of-the-Bots/BassRelay/issues).
+Feedback about device compatibility and game transitions is welcome in [GitHub issues](https://github.com/Lord-of-the-Bots/BassRelay/issues).
 
 ## Build
 

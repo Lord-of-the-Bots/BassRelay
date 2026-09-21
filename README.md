@@ -13,7 +13,7 @@ Bass Relay brings movies and music to the bass shakers in your cockpit. It sends
 | Controls | A small window and tray menu | A page inside SimHub |
 | Movies and music | Works with or without SimHub | SimHub must stay open |
 | Automatic game pause | Uses SimHub's local web server | Reads the game status directly from SimHub |
-| Download | [Windows app 1.4.1](https://github.com/Lord-of-the-Bots/BassRelay/releases/tag/v1.4.1) | [SimHub plugin 0.3.0 preview](https://github.com/Lord-of-the-Bots/BassRelay/releases/tag/simhub-v0.3.0-preview) |
+| Download | [Windows app 1.4.1](https://github.com/Lord-of-the-Bots/BassRelay/releases/tag/v1.4.1) | [SimHub plugin 0.3.0](https://github.com/Lord-of-the-Bots/BassRelay/releases/tag/simhub-v0.3.0) |
 
 Both editions send bass from the current Windows output to your shaker sound cards. Choose the plugin if you prefer to keep everything in SimHub, or the standalone app if you want movies and music without running SimHub.
 
@@ -23,13 +23,13 @@ The plugin has native SimHub controls for each sound card, vibration strength, f
 
 ![Bass Relay inside SimHub](docs/simhub-en.png)
 
-1. Download **BassRelay-SimHub-0.3.0-preview.zip** from the [plugin release](https://github.com/Lord-of-the-Bots/BassRelay/releases/tag/simhub-v0.3.0-preview).
+1. Download **BassRelay-SimHub-0.3.0.zip** from the [plugin release](https://github.com/Lord-of-the-Bots/BassRelay/releases/tag/simhub-v0.3.0).
 2. Close SimHub and copy **BassRelay.SimHub.dll** and **BassRelay.Audio.dll** beside **SimHubWPF.exe** in your SimHub folder.
 3. Start SimHub, enable **Bass Relay** in **Additional plugins**, and select your shaker sound cards on its page.
 
 **The enabled plugin takes priority over the standalone app.** It closes a running standalone Bass Relay through its normal exit command and prevents it from starting again while the plugin is enabled, including during manual and automatic pauses. Disable the plugin or close SimHub to use the standalone app again. This works with standalone 1.4.1 without updating it. The standalone app's settings and Windows startup preference are preserved; its settings are separate from the plugin's.
 
-The plugin is currently a preview for the Windows .NET Framework version of SimHub. See the [plugin guide](BassRelay.SimHub/README.md) for installation, compatibility and updates.
+The plugin runs inside the Windows .NET Framework version of SimHub. See the [plugin guide](BassRelay.SimHub/README.md) for installation, compatibility and updates.
 
 ## Standalone app
 
