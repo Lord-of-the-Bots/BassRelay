@@ -94,11 +94,6 @@ This produces the plugin ZIP in `output`. SimHub's assemblies are used for compi
 
 If something isn't working, [open an issue](https://github.com/Lord-of-the-Bots/BassRelay/issues). Include your sound cards, Windows version, and a description of what happens.
 
-
-## Contact
-
-For more information about our projects, visit our website: [https://nswtl.info](https://nswtl.info)
-
 ## Support Bass Relay
 
 If Bass Relay adds something to your setup, you can support its development with a crypto donation:

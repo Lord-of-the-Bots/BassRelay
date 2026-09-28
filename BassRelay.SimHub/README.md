@@ -53,4 +53,21 @@ From the repository root, with a .NET 10 SDK and SimHub 9.12.8 available:
 
 The build produces a ZIP containing only the two Bass Relay assemblies and this guide. SimHub's own DLLs are referenced for compilation and are not redistributed. The common audio project builds for both .NET Framework 4.8 and .NET 10; the existing desktop application uses the same audio implementation.
 
-For more information about our projects, visit our website: [https://nswtl.info](https://nswtl.info).
+## Support Bass Relay
+
+If Bass Relay adds something to your setup, you can support its development with a crypto donation:
+
+BTC (Bitcoin):
+1NbtPNkofnKZRjLpULRjhKuAtbh12DovC9
+
+USDT, TRX (TRC20):
+TUgM6hPokF1vPUW8CRp77CgvF3YroabwFP
+
+TON:
+UQBLdOWJeVeVg4b0-HkQGNVV8HG6-xWS7moZOUfNBz2-Jf3u
+
+ETH (ERC20):
+0x14bba7b8b76ea4743a202bdee2144e4d558ddf93
+
+LTC (Litecoin):
+LRRS5YBeqfkYpw2jC2bDAWgpcgm7Wpu6pM

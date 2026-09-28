@@ -18,11 +18,6 @@ Releases: https://github.com/Lord-of-the-Bots/BassRelay/releases/latest
 
 Keep THIRD-PARTY-NOTICES.txt and Licenses with the application.
 
-
-## Contact
-
-For more information about our projects, visit our website: [https://nswtl.info](https://nswtl.info)
-
 ## Support Bass Relay
 
 If Bass Relay adds something to your setup, you can support its development with a crypto donation:
