@@ -31,7 +31,9 @@ New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $pluginFiles = @('BassRelay.SimHub.dll', 'BassRelay.Audio.dll')
 foreach ($file in $pluginFiles) { Copy-Item -LiteralPath (Join-Path $pluginBin $file) -Destination $OutputDirectory -Force }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md') -Destination $OutputDirectory -Force
-$archivePath = Join-Path (Split-Path -Parent ([IO.Path]::GetFullPath($OutputDirectory))) 'BassRelay-SimHub-0.3.0.zip'
+[xml]$pluginProject = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'BassRelay.SimHub.csproj') -Raw
+$pluginVersion = [string]($pluginProject.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1)
+$archivePath = Join-Path (Split-Path -Parent ([IO.Path]::GetFullPath($OutputDirectory))) "BassRelay-SimHub-$pluginVersion.zip"
 # Explicit files prevent unrelated logs, settings or test tools entering the package.
 $archiveFiles = @($pluginFiles + 'README.md' | ForEach-Object { Join-Path $OutputDirectory $_ })
 Compress-Archive -LiteralPath $archiveFiles -DestinationPath $archivePath -Force

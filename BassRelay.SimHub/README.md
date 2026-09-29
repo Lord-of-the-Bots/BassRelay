@@ -1,4 +1,4 @@
-# Bass Relay for SimHub — 0.3.0
+# Bass Relay for SimHub — 0.4.0
 
 Movies and music through your cockpit's bass shakers, with controls inside SimHub.
 
@@ -16,6 +16,12 @@ Requires the Windows .NET Framework version of SimHub. The plugin uses the SimHu
 The plugin uses a separate SimHub settings profile. Your standalone settings are kept intact; select your cards again on first use. Settings are saved through SimHub in `PluginsData/Common/BassRelayPlugin.GeneralSettings.json`.
 
 ## Controls
+
+Version 0.4.0 adds custom channel mapping and corrects the format used for multichannel output. Existing settings keep the same sound and controls, with custom mapping off.
+
+Enable **Custom channels** beside a sound card's frequency controls, then choose **Open mapper**. Select the channels connected to your shakers and give each its own frequency range. Unchecked channels receive no audio from Bass Relay. Each selected channel filters the original captured audio independently; vibration strength remains common to the card. Changes apply with **Save**; **Cancel** leaves the previous mapping intact. Selecting no channels silences this card in custom mode.
+
+Keep the device in 5.1 or 7.1 in Windows when other software uses its remaining channels. Channel names follow the Windows layout. Turning custom mapping off restores output to all channels using the previous common frequency range, while keeping the mapping for later.
 
 - One row per output sound card, with independent strength and frequency range. Defaults: **40–90 Hz**. Allowed limits: **0–200 Hz**, with the minimum strictly below the maximum.
 - Vibration strength depends on the audio level captured from the main Windows output. Adjust the volume in your player or game first, then set the shaker strength. The main Windows device volume slider may not change the level captured by Bass Relay.

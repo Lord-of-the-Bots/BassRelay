@@ -4,7 +4,7 @@ using BassRelay.Models;
 
 namespace BassRelay.Audio;
 
-public sealed record AudioDeviceInfo(string Id, string Name);
+public sealed record AudioDeviceInfo(string Id, string Name, int ChannelCount = 0, int ChannelMask = 0);
 public sealed record ShakerStatus(Guid Id, string Message, bool IsBlocked, bool IsRunning);
 public sealed record AudioEngineSnapshot(
     string? SourceDeviceId,

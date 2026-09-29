@@ -193,7 +193,22 @@ public sealed class AudioEngine : IAudioEngine
         {
             using (device)
             {
-                try { devices.Add(new(device.ID, device.FriendlyName)); }
+                try
+                {
+                    string id = device.ID, name = device.FriendlyName;
+                    int channels = 0, mask = 0;
+                    try
+                    {
+                        // Reading the mix descriptor opens no playback stream. A driver
+                        // metadata failure must not remove a usable endpoint from the list.
+                        using AudioClient client = device.AudioClient;
+                        WaveFormat format = client.MixFormat;
+                        channels = format.Channels;
+                        mask = AudioChannelLayout.GetChannelMask(format);
+                    }
+                    catch { }
+                    devices.Add(new(id, name, channels, mask));
+                }
                 catch { /* A just-unplugged endpoint should not hide other devices. */ }
             }
         }
@@ -233,6 +248,8 @@ public sealed class AudioEngine : IAudioEngine
                 statuses[shaker.Id] = new(shaker.Id,
                     Text(_simHubMonitor.State.IsAvailable ? "SimHubGameRunning" : "WaitingSimHubState"), true, false);
             else if (!available.Contains(shaker.DeviceId!)) statuses[shaker.Id] = new(shaker.Id, Text("DeviceDisconnected"), false, false);
+            else if (shaker.CustomChannelMapping && !HasSelectedChannels(shaker, devices.First(d => SameDevice(d.Id, shaker.DeviceId))))
+                statuses[shaker.Id] = new(shaker.Id, Text("ChannelMappingSilent"), false, false);
             else if (sourceId is null) statuses[shaker.Id] = new(shaker.Id, Text("WaitingDefaultDevice"), false, false);
             else if (!ValidBand(shaker)) statuses[shaker.Id] = new(shaker.Id, Text("InvalidFrequencyBand"), false, false);
             else if (!candidates.ContainsKey(shaker.Id)) candidates.Add(shaker.Id, shaker);
@@ -309,8 +326,11 @@ public sealed class AudioEngine : IAudioEngine
                     output.Start();
                     _outputErrors.Remove(shaker.Id);
                 }
-                else output.Provider.Configure(shaker.LowCutHz, shaker.HighCutHz, shaker.Gain);
-                statuses[shaker.Id] = new(shaker.Id, Text("ShakerRunning", shaker.LowCutHz.ToString("0.#"), shaker.HighCutHz.ToString("0.#")), false, true);
+                else output.Provider.Configure(shaker);
+                statuses[shaker.Id] = new(shaker.Id, shaker.CustomChannelMapping
+                    ? Text(output.Provider.HasMappedOutput ? "ShakerRunningMapped" : "ChannelMappingSilent")
+                    : Text("ShakerRunning", shaker.LowCutHz.ToString("0.#"), shaker.HighCutHz.ToString("0.#")),
+                    false, !shaker.CustomChannelMapping || output.Provider.HasMappedOutput);
             }
             catch (Exception exception)
             {
@@ -481,7 +501,18 @@ public sealed class AudioEngine : IAudioEngine
     }
 
     private static bool SameDevice(string? left, string? right) => string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
-    private static bool ValidBand(ShakerSettings settings) => FrequencyRange.IsValidBand(settings.LowCutHz, settings.HighCutHz);
+    private static bool ValidBand(ShakerSettings settings) => FrequencyRange.IsValidBand(settings.LowCutHz, settings.HighCutHz) &&
+        (!settings.CustomChannelMapping || settings.ChannelMappings is null || settings.ChannelMappings.All(mapping =>
+            mapping is null || !mapping.Enabled || FrequencyRange.IsValidBand(mapping.LowCutHz, mapping.HighCutHz)));
+    private static bool HasSelectedChannels(ShakerSettings settings, AudioDeviceInfo device)
+    {
+        if (settings.ChannelMappings is null) return false;
+        // If metadata was temporarily unavailable, the output session can retry reading
+        // the actual native format. Known layouts only activate explicitly mapped speakers.
+        if (device.ChannelCount is < 1 or > 32) return settings.ChannelMappings.Any(mapping => mapping is { Enabled: true });
+        return AudioChannelLayout.GetChannels(device.ChannelCount, device.ChannelMask).Any(channel =>
+            AudioChannelLayout.FindMapping(channel, settings.ChannelMappings) is { Enabled: true });
+    }
     private string Describe(Exception exception) => Text("ErrorCode", exception.HResult.ToString("X8"));
     private string Text(string key, params object[] args) => _text(key, args);
     private void Log(string message, Exception? exception)
@@ -604,12 +635,18 @@ public sealed class AudioEngine : IAudioEngine
             {
                 DeviceId = device.ID;
                 _output = new WasapiOut(device, AudioClientShareMode.Shared, true, 30);
-                int channels = _output.OutputWaveFormat.Channels;
-                Provider = new ShakerSampleProvider(sampleRate, channels, settings.LowCutHz, settings.HighCutHz, settings.Gain);
+                WaveFormat nativeFormat = _output.OutputWaveFormat;
+                int channels = nativeFormat.Channels;
+                int channelMask = AudioChannelLayout.GetChannelMask(nativeFormat);
+                Provider = new ShakerSampleProvider(sampleRate, channels, settings.LowCutHz, settings.HighCutHz,
+                    settings.Gain, channelMask: channelMask);
+                Provider.Configure(settings);
                 Provider.SetMuted(true);
                 // Shared-mode WASAPI converts the capture sample rate to the target rate.
-                // Mono bass is duplicated to every target channel before this conversion.
-                _output.Init(new SampleToWaveProvider(Provider));
+                // Multichannel streams retain the device's real speaker layout rather
+                // than submitting an ambiguous plain WAVEFORMATEX descriptor.
+                _output.Init(channels <= 2 ? new SampleToWaveProvider(Provider) :
+                    new FloatWaveProvider(Provider, AudioChannelLayout.CreateFloatFormat(sampleRate, channels, channelMask)));
                 _output.PlaybackStopped += PlaybackStopped;
             }
             catch

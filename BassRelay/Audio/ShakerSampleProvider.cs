@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using BassRelay.Models;
 using NAudio.Wave;
 
 namespace BassRelay.Audio;
@@ -18,14 +20,23 @@ public sealed class ShakerSampleProvider : ISampleProvider
     private double _gain;
     private double _low, _high;
     private bool _muted;
+    private readonly IReadOnlyList<AudioChannelInfo> _layout;
+    private readonly float[] _currentChannelFrame;
+    private BandPassFilter?[] _channelFilters;
+    private ChannelMappingSettings?[] _channelSettings;
+    private bool _customChannelMapping;
 
     public ShakerSampleProvider(int sampleRate, int channels, double lowCutHz, double highCutHz,
-        double gain = 1, int capacityMilliseconds = 160)
+        double gain = 1, int capacityMilliseconds = 160, int channelMask = 0)
     {
         if (channels is < 1 or > 32) throw new ArgumentOutOfRangeException(nameof(channels));
         if (capacityMilliseconds is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(capacityMilliseconds));
         _filter = new BandPassFilter(sampleRate, lowCutHz, highCutHz);
         WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, channels);
+        _layout = AudioChannelLayout.GetChannels(channels, channelMask);
+        _currentChannelFrame = new float[channels];
+        _channelFilters = new BandPassFilter?[channels];
+        _channelSettings = new ChannelMappingSettings?[channels];
         _ring = new float[Math.Max(1, checked(sampleRate * capacityMilliseconds / 1000))];
         _low = lowCutHz;
         _high = highCutHz;
@@ -35,20 +46,73 @@ public sealed class ShakerSampleProvider : ISampleProvider
     public WaveFormat WaveFormat { get; }
     public int CapacityFrames => _ring.Length;
     public int BufferedFrames { get { lock (_gate) return _count; } }
+    public bool HasMappedOutput
+    {
+        get
+        {
+            lock (_gate)
+            {
+                foreach (BandPassFilter? filter in _channelFilters) if (filter is not null) return true;
+                return false;
+            }
+        }
+    }
 
     public void Configure(double lowCutHz, double highCutHz, double gain)
     {
+        lock (_gate) ConfigureBand(lowCutHz, highCutHz, gain);
+    }
+
+    public void Configure(ShakerSettings settings)
+    {
+        if (settings is null) throw new ArgumentNullException(nameof(settings));
         lock (_gate)
         {
-            if (_low != lowCutHz || _high != highCutHz)
+            bool changed = settings.CustomChannelMapping != _customChannelMapping;
+            var configured = new ChannelMappingSettings?[WaveFormat.Channels];
+            if (settings.CustomChannelMapping)
             {
-                var replacement = new BandPassFilter(WaveFormat.SampleRate, lowCutHz, highCutHz);
-                _filter = replacement;
-                _low = lowCutHz;
-                _high = highCutHz;
+                for (int index = 0; index < configured.Length; index++)
+                {
+                    ChannelMappingSettings? mapping = AudioChannelLayout.FindMapping(_layout[index], settings.ChannelMappings);
+                    configured[index] = mapping?.Copy();
+                    if (!SameMapping(_channelSettings[index], mapping)) changed = true;
+                }
             }
-            _gain = Numeric.IsFinite(gain) ? Numeric.Clamp(gain, 0, 2) : 1;
+            if (changed)
+            {
+                var filters = new BandPassFilter?[WaveFormat.Channels];
+                if (settings.CustomChannelMapping)
+                    for (int index = 0; index < filters.Length; index++)
+                        if (configured[index] is { Enabled: true } mapping)
+                            filters[index] = new BandPassFilter(WaveFormat.SampleRate, mapping.LowCutHz, mapping.HighCutHz);
+                _channelSettings = configured;
+                _channelFilters = filters;
+                _customChannelMapping = settings.CustomChannelMapping;
+                // Discard queued samples, old filters and the remainder of a partial
+                // frame. Keep its position so the next read does not shift channels.
+                int channel = _channel;
+                ClearCore();
+                _channel = channel;
+            }
+            ConfigureBand(settings.LowCutHz, settings.HighCutHz, settings.Gain);
         }
+    }
+
+    private static bool SameMapping(ChannelMappingSettings? left, ChannelMappingSettings? right) =>
+        (left?.Enabled ?? false) == (right?.Enabled ?? false) &&
+        (!(left?.Enabled ?? false) || left!.LowCutHz == right!.LowCutHz && left.HighCutHz == right.HighCutHz);
+
+    private void ConfigureBand(double lowCutHz, double highCutHz, double gain)
+    {
+        if (_low != lowCutHz || _high != highCutHz)
+        {
+            var replacement = new BandPassFilter(WaveFormat.SampleRate, lowCutHz, highCutHz);
+            _filter = replacement;
+            _low = lowCutHz;
+            _high = highCutHz;
+        }
+        _gain = Numeric.IsFinite(gain) ? Numeric.Clamp(gain, 0, 2) : 1;
     }
 
     public void Enqueue(float[] monoSamples) => Enqueue(monoSamples, 0, monoSamples?.Length ?? 0);
@@ -124,9 +188,17 @@ public sealed class ShakerSampleProvider : ISampleProvider
                         _head = (_head + 1) % _ring.Length;
                         _count--;
                     }
-                    _currentFrame = (float)Numeric.Clamp(_filter.Process(mono) * _gain, -1, 1);
+                    if (_customChannelMapping)
+                    {
+                        // Every selected channel filters the original captured mono
+                        // signal independently. The ordinary card band is bypassed.
+                        for (int channel = 0; channel < _channelFilters.Length; channel++)
+                            _currentChannelFrame[channel] = _channelFilters[channel] is { } filter
+                                ? (float)Numeric.Clamp(filter.Process(mono) * _gain, -1, 1) : 0;
+                    }
+                    else _currentFrame = (float)Numeric.Clamp(_filter.Process(mono) * _gain, -1, 1);
                 }
-                buffer[offset + i] = _currentFrame;
+                buffer[offset + i] = _customChannelMapping ? _currentChannelFrame[_channel] : _currentFrame;
                 _channel = (_channel + 1) % WaveFormat.Channels;
             }
         }
@@ -152,5 +224,7 @@ public sealed class ShakerSampleProvider : ISampleProvider
         _head = _count = _channel = 0;
         _currentFrame = 0;
         _filter.Reset();
+        Array.Clear(_currentChannelFrame, 0, _currentChannelFrame.Length);
+        foreach (BandPassFilter? filter in _channelFilters) filter?.Reset();
     }
 }

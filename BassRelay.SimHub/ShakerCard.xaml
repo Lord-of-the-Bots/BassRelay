@@ -1,4 +1,4 @@
-<UserControl x:Class="BassRelay.UI.ShakerCard"
+<UserControl x:Class="BassRelaySimHub.UI.ShakerCard"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:styles="clr-namespace:SimHub.Plugins.Styles;assembly=SimHub.Plugins"
@@ -33,9 +33,9 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="105" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="105" />
+                        <ColumnDefinition Width="222" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel ToolTip="{DynamicResource ShakerStrengthHelp}">
                         <TextBlock Text="{DynamicResource VibrationStrength}" Margin="0,0,0,3" />
@@ -52,20 +52,33 @@
                                        HorizontalAlignment="Right" VerticalAlignment="Center" />
                         </Grid>
                     </StackPanel>
-                    <StackPanel Grid.Column="2">
+                    <Grid Grid.Column="2">
+                      <Grid x:Name="CommonFrequencyControls">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <StackPanel>
                         <TextBlock Text="{DynamicResource LowCut}" TextWrapping="Wrap" Margin="0,0,0,3" />
                         <TextBox x:Name="LowCutBox" LostKeyboardFocus="NumericLostFocus" KeyDown="NumericKeyDown"
                                  PreviewTextInput="FrequencyTextInput" DataObject.Pasting="FrequencyPaste"
                                  ToolTip="{DynamicResource FrequencyHelp}" ToolTipService.ShowOnDisabled="True"
                                  AutomationProperties.Name="{DynamicResource LowCut}" MaxLength="8" MinHeight="30" />
                     </StackPanel>
-                    <StackPanel Grid.Column="4">
+                    <StackPanel Grid.Column="2">
                         <TextBlock Text="{DynamicResource HighCut}" TextWrapping="Wrap" Margin="0,0,0,3" />
                         <TextBox x:Name="HighCutBox" LostKeyboardFocus="NumericLostFocus" KeyDown="NumericKeyDown"
                                  PreviewTextInput="FrequencyTextInput" DataObject.Pasting="FrequencyPaste"
                                  ToolTip="{DynamicResource FrequencyHelp}" ToolTipService.ShowOnDisabled="True"
                                  AutomationProperties.Name="{DynamicResource HighCut}" MaxLength="8" MinHeight="30" />
                     </StackPanel>
+                      </Grid>
+                      <styles:SHButtonSecondary x:Name="OpenMapperButton" Content="{DynamicResource OpenChannelMapper}"
+                                                Click="OpenMapperClicked" VerticalAlignment="Bottom" MinHeight="30" Visibility="Collapsed" />
+                    </Grid>
+                    <styles:SHToggleCheckbox x:Name="CustomMappingBox" Grid.Column="4" VerticalAlignment="Bottom" Margin="0,0,0,4"
+                                             Checked="CustomMappingChanged" Unchecked="CustomMappingChanged"
+                                             ToolTip="{DynamicResource CustomChannelMappingHelp}" ToolTipService.ShowOnDisabled="True"
+                                             AutomationProperties.Name="{DynamicResource CustomChannelMapping}">
+                        <TextBlock Text="{DynamicResource CustomChannelMapping}" MaxWidth="135" TextWrapping="Wrap" />
+                    </styles:SHToggleCheckbox>
                 </Grid>
                 <Border x:Name="WarningIndicator" Grid.Column="1" Width="20" Height="20"
                         Margin="10,27,0,0" VerticalAlignment="Top" CornerRadius="10"

@@ -1,0 +1,59 @@
+<Window x:Class="BassRelaySimHub.UI.ChannelMapperWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:styles="clr-namespace:SimHub.Plugins.Styles;assembly=SimHub.Plugins"
+        Title="{DynamicResource ChannelMapperTitle}" Width="620" MinWidth="520"
+        SizeToContent="Height" MaxHeight="760" WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False" Background="{DynamicResource WindowBackgroundBrush}" Foreground="{DynamicResource TextBrush}">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="VisibleWhenTrue" />
+    </Window.Resources>
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+            <RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock x:Name="DeviceNameLabel" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Text="{DynamicResource ChannelMapperHelp}" TextWrapping="Wrap" Opacity="0.8" Margin="0,7,0,14" />
+        </StackPanel>
+        <Grid Grid.Row="1" Margin="0,0,18,5">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="105" /><ColumnDefinition Width="12" /><ColumnDefinition Width="105" /></Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="1" Text="{DynamicResource LowCut}" TextWrapping="Wrap" />
+            <TextBlock Grid.Column="3" Text="{DynamicResource HighCut}" TextWrapping="Wrap" />
+        </Grid>
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MaxHeight="460">
+            <ItemsControl x:Name="ChannelRows" Margin="0,0,18,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,0,0,7" MinHeight="32">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="105" /><ColumnDefinition Width="12" /><ColumnDefinition Width="105" /></Grid.ColumnDefinitions>
+                            <styles:SHToggleCheckbox IsChecked="{Binding Enabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="0,0,10,0">
+                                <TextBlock Text="{Binding Label}" TextWrapping="Wrap" />
+                            </styles:SHToggleCheckbox>
+                            <Grid Grid.Column="1" Grid.ColumnSpan="3" Visibility="{Binding Enabled, Converter={StaticResource VisibleWhenTrue}}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding LowText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MaxLength="8" MinHeight="32"
+                                         PreviewTextInput="FrequencyTextInput" DataObject.Pasting="FrequencyPaste"
+                                         ToolTip="{DynamicResource FrequencyHelp}" AutomationProperties.Name="{DynamicResource LowCut}" />
+                                <TextBox Grid.Column="2" Text="{Binding HighText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MaxLength="8" MinHeight="32"
+                                         PreviewTextInput="FrequencyTextInput" DataObject.Pasting="FrequencyPaste"
+                                         ToolTip="{DynamicResource FrequencyHelp}" AutomationProperties.Name="{DynamicResource HighCut}" />
+                                <Border Grid.ColumnSpan="3" BorderBrush="#E56D6D" BorderThickness="1.5" IsHitTestVisible="False"
+                                        Visibility="{Binding HasError, Converter={StaticResource VisibleWhenTrue}}" />
+                            </Grid>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+        <StackPanel Grid.Row="3" Margin="0,7,0,0">
+            <TextBlock x:Name="SilenceLabel" Text="{DynamicResource ChannelMapperSilence}" TextWrapping="Wrap" Visibility="Collapsed" />
+            <TextBlock x:Name="ErrorLabel" Foreground="#E56D6D" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,5,0,0" />
+        </StackPanel>
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <styles:SHButtonSecondary Content="{DynamicResource CancelChannelMapping}" IsCancel="True" MinWidth="105" Margin="0,0,10,0" />
+            <styles:SHButtonPrimary x:Name="SaveButton" Content="{DynamicResource SaveChannelMapping}" IsDefault="True" Click="SaveClicked" MinWidth="105" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -6,7 +6,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <AssemblyName>BassRelay.Audio</AssemblyName>
     <RootNamespace>BassRelay</RootNamespace>
-    <Version>1.4.1</Version>
+    <Version>1.5.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../BassRelay/Audio/*.cs" Exclude="../BassRelay/Audio/SimHubGameMonitor.cs" Link="Audio/%(Filename)%(Extension)" />

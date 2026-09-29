@@ -8,7 +8,7 @@ using BassRelay.Audio;
 using BassRelay.Models;
 using BassRelay.Services;
 using BassRelay.SimHub;
-using BassRelay.UI;
+using BassRelaySimHub.UI;
 using Localization = BassRelay.Services.Localization;
 
 namespace BassRelaySimHub;

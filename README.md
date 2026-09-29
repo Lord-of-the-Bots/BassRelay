@@ -13,7 +13,7 @@ Bass Relay brings movies and music to the bass shakers in your cockpit. It sends
 | Controls | A small window and tray menu | A page inside SimHub |
 | Movies and music | Works with or without SimHub | SimHub must stay open |
 | Automatic game pause | Uses SimHub's local web server | Reads the game status directly from SimHub |
-| Download | [Windows app 1.4.1](https://github.com/Lord-of-the-Bots/BassRelay/releases/tag/v1.4.1) | [SimHub plugin 0.3.0](https://github.com/Lord-of-the-Bots/BassRelay/releases/tag/simhub-v0.3.0) |
+| Download | [Windows app 1.5.0](https://github.com/Lord-of-the-Bots/BassRelay/releases/tag/v1.5.0) | [SimHub plugin 0.4.0](https://github.com/Lord-of-the-Bots/BassRelay/releases/tag/simhub-v0.4.0) |
 
 Both editions send bass from the current Windows output to your shaker sound cards. Choose the plugin if you prefer to keep everything in SimHub, or the standalone app if you want movies and music without running SimHub.
 
@@ -23,7 +23,7 @@ The plugin has native SimHub controls for each sound card, vibration strength, f
 
 ![Bass Relay inside SimHub](docs/simhub-en.png)
 
-1. Download **BassRelay-SimHub-0.3.0.zip** from the [plugin release](https://github.com/Lord-of-the-Bots/BassRelay/releases/tag/simhub-v0.3.0).
+1. Download **BassRelay-SimHub-0.4.0.zip** from the [plugin release](https://github.com/Lord-of-the-Bots/BassRelay/releases/tag/simhub-v0.4.0).
 2. Close SimHub and copy **BassRelay.SimHub.dll** and **BassRelay.Audio.dll** beside **SimHubWPF.exe** in your SimHub folder.
 3. Start SimHub, enable **Bass Relay** in **Additional plugins**, and select your shaker sound cards on its page.
 
@@ -35,7 +35,7 @@ The plugin runs inside the Windows .NET Framework version of SimHub. See the [pl
 
 ![Bass Relay interface](docs/interface-en.png)
 
-1. Download and run **BassRelay-Setup-1.4.1.exe** from the [standalone release](https://github.com/Lord-of-the-Bots/BassRelay/releases/tag/v1.4.1). No administrator rights or separate .NET installation needed.
+1. Download and run **BassRelay-Setup-1.5.0.exe** from the [standalone release](https://github.com/Lord-of-the-Bots/BassRelay/releases/tag/v1.5.0). No administrator rights or separate .NET installation needed.
 2. Choose the sound card connected to your shaker amplifier.
 3. Adjust vibration strength. The default frequency range is **40–90 Hz**.
 
@@ -44,6 +44,16 @@ Use **+ Add shaker** for more sound cards, each with its own strength and freque
 Prefer no installer? Download the portable ZIP, extract it to a permanent writable folder, and run **BassRelay.exe**. Keep the included third-party notices with your copy. Settings are saved in `Data` beside the executable.
 
 ## Made for a cockpit that does more than racing
+
+### Custom channel mapping in app 1.5.0 and plugin 0.4.0
+
+Keep a sound card in 5.1 or 7.1 and send bass only to selected outputs. Enable **Custom channels** beside the frequency controls, choose **Open mapper**, and select channels with the checkboxes. Each selected channel has its own 0–200 Hz frequency range; vibration strength stays common to the sound card. Unchecked channels receive no audio from Bass Relay.
+
+Existing settings keep custom mapping off and continue to send bass to all channels with the original frequency range. Turning mapping off restores that behavior without deleting the saved channel settings. Multichannel output now uses the device's channel layout when opening the Windows audio stream.
+
+![Choose output channels and a frequency range for each](docs/channel-mapper-en.png)
+
+### Features
 
 - Bass from the current Windows default audio output, including ordinary stereo films. No separate LFE track required.
 - Automatically follows changes to the Windows default output.

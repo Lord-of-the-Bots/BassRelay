@@ -32,9 +32,9 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="12" />
-                <ColumnDefinition Width="80" />
-                <ColumnDefinition Width="12" />
-                <ColumnDefinition Width="80" />
+                <ColumnDefinition Width="172" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel>
                 <Grid Height="30">
@@ -51,20 +51,33 @@
                 </Grid>
                 <TextBlock Text="{DynamicResource VibrationStrength}" Foreground="#667383" FontSize="11" Margin="0,4,0,0" />
             </StackPanel>
-            <StackPanel Grid.Column="2">
+            <Grid Grid.Column="2">
+              <Grid x:Name="CommonFrequencyControls">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <StackPanel>
                 <TextBox x:Name="LowCutBox" LostKeyboardFocus="NumericLostFocus" KeyDown="NumericKeyDown"
                          PreviewTextInput="FrequencyTextInput" DataObject.Pasting="FrequencyPaste"
                          ToolTip="{DynamicResource FrequencyHelp}" ToolTipService.ShowOnDisabled="True"
                          AutomationProperties.Name="{DynamicResource LowCut}" MaxLength="8" MinHeight="30" Height="30" Padding="7,4" />
                 <TextBlock Text="{DynamicResource LowCut}" Foreground="#667383" FontSize="11" Margin="0,4,0,0" />
             </StackPanel>
-            <StackPanel Grid.Column="4">
+            <StackPanel Grid.Column="2">
                 <TextBox x:Name="HighCutBox" LostKeyboardFocus="NumericLostFocus" KeyDown="NumericKeyDown"
                          PreviewTextInput="FrequencyTextInput" DataObject.Pasting="FrequencyPaste"
                          ToolTip="{DynamicResource FrequencyHelp}" ToolTipService.ShowOnDisabled="True"
                          AutomationProperties.Name="{DynamicResource HighCut}" MaxLength="8" MinHeight="30" Height="30" Padding="7,4" />
                 <TextBlock Text="{DynamicResource HighCut}" Foreground="#667383" FontSize="11" Margin="0,4,0,0" />
             </StackPanel>
+              </Grid>
+              <Button x:Name="OpenMapperButton" Content="{DynamicResource OpenChannelMapper}"
+                      Click="OpenMapperClicked" Height="30" VerticalAlignment="Top" Visibility="Collapsed" />
+            </Grid>
+            <CheckBox x:Name="CustomMappingBox" Grid.Column="4" VerticalAlignment="Top" Margin="0,6,0,0"
+                      Checked="CustomMappingChanged" Unchecked="CustomMappingChanged"
+                      ToolTip="{DynamicResource CustomChannelMappingHelp}" ToolTipService.ShowOnDisabled="True"
+                      AutomationProperties.Name="{DynamicResource CustomChannelMapping}">
+                <TextBlock Text="{DynamicResource CustomChannelMapping}" MaxWidth="100" TextWrapping="Wrap" FontSize="11" />
+            </CheckBox>
         </Grid>
             <Border x:Name="WarningIndicator" Grid.Column="1" Width="18" Height="18"
                     Margin="8,6,0,0" VerticalAlignment="Top" CornerRadius="9"

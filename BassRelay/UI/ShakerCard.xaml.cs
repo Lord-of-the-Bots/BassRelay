@@ -11,7 +11,11 @@ using BassRelay.Models;
 using BassRelay.Services;
 using Localization = BassRelay.Services.Localization;
 
+#if NETFRAMEWORK
+namespace BassRelaySimHub.UI;
+#else
 namespace BassRelay.UI;
+#endif
 
 public partial class ShakerCard : UserControl
 {
@@ -21,6 +25,7 @@ public partial class ShakerCard : UserControl
     private bool _removing;
     private int _number = 1;
     private AudioEngineSnapshot? _snapshot;
+    private ChannelMapperWindow? _mapper;
     private static readonly Brush Invalid = new SolidColorBrush(Color.FromRgb(182, 51, 51));
 
     public ShakerSettings Settings { get; }
@@ -32,6 +37,7 @@ public partial class ShakerCard : UserControl
         _remove = remove;
         _updating = true;
         InitializeComponent();
+        Unloaded += (_, _) => _mapper?.Close();
         if (deviceTemplate is not null)
         {
             DeviceBox.DisplayMemberPath = "";
@@ -41,6 +47,7 @@ public partial class ShakerCard : UserControl
         ShowSavedNumbers();
         GainSlider.Value = Math.Max(0, Math.Min(100, settings.Gain * 100));
         GainValueLabel.Text = $"{Math.Round(GainSlider.Value):0} %";
+        UpdateMapperControls();
         _updating = false;
     }
 
@@ -58,6 +65,7 @@ public partial class ShakerCard : UserControl
         if (ValidationLabel.Visibility == Visibility.Visible)
             ValidationLabel.Text = Localization.Text("FrequencyValidation");
         if (_snapshot is not null) ApplySnapshot(_snapshot);
+        _mapper?.RefreshLanguage();
     }
 
     public void ClearDevice()
@@ -65,6 +73,9 @@ public partial class ShakerCard : UserControl
         _removing = false;
         Settings.DeviceId = null;
         Settings.DeviceName = null;
+        Settings.CustomChannelMapping = false;
+        Settings.ChannelMappings.Clear();
+        UpdateMapperControls();
         ShowSavedNumbers();
         ClearValidation();
         if (_snapshot is not null) ApplySnapshot(_snapshot);
@@ -92,6 +103,8 @@ public partial class ShakerCard : UserControl
         bool blocked = !string.IsNullOrEmpty(Settings.DeviceId) && (sameDevice || status?.IsBlocked == true);
         ProcessingControls.IsEnabled = !blocked;
         ProcessingControls.Opacity = ProcessingControls.IsEnabled ? 1 : 0.48;
+        UpdateMapperControls();
+        _mapper?.ApplyDeviceSnapshot(SelectedDevice());
         string? warning = null;
         if (sameDevice)
         {
@@ -100,6 +113,7 @@ public partial class ShakerCard : UserControl
         else if (!string.IsNullOrEmpty(Settings.DeviceId) && status is { IsRunning: false } &&
                  !string.IsNullOrWhiteSpace(status.Message) && !Localization.IsText("ShakerDisabled", status.Message) &&
                  !Localization.IsText("ConnectingDevice", status.Message) &&
+                 !Localization.IsText("ChannelMappingSilent", status.Message) &&
                  !Localization.IsText("SelectDevice", status.Message))
         {
             warning = status.Message;
@@ -119,6 +133,13 @@ public partial class ShakerCard : UserControl
             _removing = true;
             _remove(this);
             return;
+        }
+        if (!string.Equals(Settings.DeviceId, device.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            // A saved route belongs to this endpoint, never to a newly selected card.
+            Settings.CustomChannelMapping = false;
+            Settings.ChannelMappings.Clear();
+            ClearValidation();
         }
         Settings.DeviceId = device.Id;
         Settings.DeviceName = device.Name;
@@ -189,7 +210,7 @@ public partial class ShakerCard : UserControl
 
     private void SaveNumbers()
     {
-        if (_updating || _removing)
+        if (_updating || _removing || Settings.CustomChannelMapping)
             return;
         bool lowValid = TryNumber(LowCutBox.Text, out double low) && low >= FrequencyRange.Minimum && low <= FrequencyRange.Maximum;
         bool highValid = TryNumber(HighCutBox.Text, out double high) && high >= FrequencyRange.Minimum && high <= FrequencyRange.Maximum;
@@ -232,4 +253,66 @@ public partial class ShakerCard : UserControl
         if (valid) box.ClearValue(Control.BorderBrushProperty);
         else box.BorderBrush = Invalid;
     }
+
+    private AudioDeviceInfo? SelectedDevice() => _snapshot?.Devices.FirstOrDefault(device =>
+        string.Equals(device.Id, Settings.DeviceId, StringComparison.OrdinalIgnoreCase));
+
+    private void UpdateMapperControls()
+    {
+        bool updating = _updating;
+        _updating = true;
+        bool custom = Settings.CustomChannelMapping;
+        bool hasChannels = HasSupportedChannels(SelectedDevice());
+        CustomMappingBox.IsChecked = custom;
+        CustomMappingBox.IsEnabled = custom || hasChannels;
+        CommonFrequencyControls.Visibility = custom ? Visibility.Collapsed : Visibility.Visible;
+        OpenMapperButton.Visibility = custom ? Visibility.Visible : Visibility.Collapsed;
+        OpenMapperButton.IsEnabled = hasChannels;
+        OpenMapperButton.SetResourceReference(ToolTipProperty,
+            hasChannels ? "CustomChannelMappingHelp" : "ChannelMapperUnavailable");
+        _updating = updating;
+    }
+
+    private void CustomMappingChanged(object sender, RoutedEventArgs e)
+    {
+        if (_updating || _removing) return;
+        bool custom = CustomMappingBox.IsChecked == true;
+        var device = SelectedDevice();
+        if (custom && !HasSupportedChannels(device))
+        {
+            UpdateMapperControls();
+            return;
+        }
+        if (custom && Settings.ChannelMappings.Count == 0)
+            Settings.ChannelMappings = ChannelMapperWindow.CreateMappings(device!, Settings);
+        Settings.CustomChannelMapping = custom;
+        ClearValidation();
+        ShowSavedNumbers();
+        UpdateMapperControls();
+        _changed();
+    }
+
+    private void OpenMapperClicked(object sender, RoutedEventArgs e)
+    {
+        if (_removing || _mapper is not null) return;
+        var device = SelectedDevice();
+        if (!HasSupportedChannels(device)) return;
+        var mapper = new ChannelMapperWindow(this, device!, Settings, SelectedDevice);
+        _mapper = mapper;
+        try
+        {
+            if (mapper.ShowDialog() == true && mapper.Result is not null)
+            {
+                Settings.ChannelMappings = mapper.Result;
+                _changed();
+            }
+        }
+        finally
+        {
+            _mapper = null;
+        }
+    }
+
+    private static bool HasSupportedChannels(AudioDeviceInfo? device) =>
+        device is not null && device.ChannelCount >= 1 && device.ChannelCount <= 32;
 }
